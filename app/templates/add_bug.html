@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<h2>Create Bug</h2>
+
+<form method="POST">
+
+<input
+type="text"
+name="title"
+placeholder="Bug Title"
+required>
+
+<br><br>
+
+<textarea
+name="description"
+placeholder="Description">
+</textarea>
+
+<br><br>
+
+<select name="severity">
+
+<option>Low</option>
+<option>Medium</option>
+<option>High</option>
+<option>Critical</option>
+
+</select>
+
+<br><br>
+
+<select name="project_id">
+
+{% for project in projects %}
+<option value="{{ project.id }}">
+{{ project.name }}
+</option>
+{% endfor %}
+
+</select>
+
+<br><br>
+
+<button type="submit">
+Create Bug
+</button>
+
+</form>
+
+{% endblock %}

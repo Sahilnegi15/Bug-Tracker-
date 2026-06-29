@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<h2>Bugs</h2>
+
+<a href="/bug/add">Create Bug</a>
+
+<table border="1">
+
+<tr>
+<th>Title</th>
+<th>Severity</th>
+<th>Status</th>
+</tr>
+
+{% for bug in bugs %}
+
+<tr>
+<td>{{ bug.title }}</td>
+<td>{{ bug.severity }}</td>
+<td>{{ bug.status }}</td>
+</tr>
+
+{% endfor %}
+
+</table>
+
+{% endblock %}
