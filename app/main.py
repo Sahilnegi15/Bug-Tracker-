@@ -2,7 +2,8 @@ from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
-
+import requests
+from urllib.parse import urlparse
 
 app = Flask(__name__, template_folder="templates")
 
@@ -69,12 +70,45 @@ class User(UserMixin, db.Model):
     )
 
 
+class Repository(db.Model):
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    repo_name = db.Column(
+        db.String(200)
+    )
+
+    owner = db.Column(
+        db.String(100)
+    )
+
+    github_url = db.Column(
+        db.String(500)
+    )
+
+    project_id = db.Column(
+        db.Integer,
+        db.ForeignKey("project.id")
+    )
+
+
+
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
 
+def get_repo_issues(owner, repo):
+
+    url = f"https://api.github.com/repos/{owner}/{repo}/issues"
+
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        return response.json()
+
+    return []
 
 # ----------------------
 # Routes
@@ -208,6 +242,86 @@ def logout():
     return redirect(url_for("login"))
 
 
+@app.route("/github/import", methods=["GET", "POST"])
+def import_github():
+    if request.method == "POST":
+
+        repo_url = request.form.get("repo_url", "").strip()
+
+        try:
+            # Example:
+            # https://github.com/pallets/flask
+
+            parsed = urlparse(repo_url)
+
+            if "github.com" not in parsed.netloc:
+                return "Please enter a valid GitHub repository URL."
+
+            path_parts = parsed.path.strip("/").split("/")
+
+            if len(path_parts) < 2:
+                return "Invalid repository URL."
+
+            owner = path_parts[0]
+            repo = path_parts[1]
+
+            github_api = f"https://api.github.com/repos/{owner}/{repo}/issues"
+
+            response = requests.get(
+                github_api,
+                headers={
+                    "Accept": "application/vnd.github+json",
+                    "User-Agent": "BugTracker"
+                }
+            )
+
+            if response.status_code == 404:
+                return f"Repository '{owner}/{repo}' not found."
+
+            if response.status_code != 200:
+                return (
+                    f"GitHub API Error: {response.status_code}<br>"
+                    f"{response.text}"
+                )
+
+            issues = response.json()
+
+            if not isinstance(issues, list):
+                return "Unexpected response received from GitHub API."
+
+            imported_count = 0
+
+            for issue in issues:
+
+                # Skip pull requests
+                if "pull_request" in issue:
+                    continue
+
+                title = issue.get("title", "No Title")
+                description = issue.get("body") or "No Description"
+
+                bug = Bug(
+                    title=title,
+                    description=description,
+                    severity="Medium",
+                    status="Open"
+                )
+
+                db.session.add(bug)
+                imported_count += 1
+
+            db.session.commit()
+
+            return f"""
+            <h3>Import Successful</h3>
+            <p>Imported {imported_count} issues from <b>{owner}/{repo}</b></p>
+            <a href="/bugs">View Imported Bugs</a>
+            """
+
+        except Exception as e:
+            return f"Error: {str(e)}"
+
+    return render_template("import_github.html")
 
 
 if __name__ == "__main__":
